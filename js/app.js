@@ -11,9 +11,9 @@ const listDisplayContainer = document.querySelector(
 const listTitle = document.querySelector("[data-list-title]");
 const listCount = document.querySelector("[data-list-count]");
 const tasksContainer = document.querySelector("[data-tasks]");
-const newTaskForm = document.querySelector('[data-new-task-form]');
-const newTaskInput = document.querySelector('[data-new-task-input]');
-const clearTasksBtn = document.querySelector('[data-clear-tasks-button]')
+const newTaskForm = document.querySelector("[data-new-task-form]");
+const newTaskInput = document.querySelector("[data-new-task-input]");
+const clearTasksBtn = document.querySelector("[data-clear-tasks-button]");
 
 // data-new-task-create
 
@@ -29,6 +29,7 @@ class TodoList {
       LOCAL_STORAGE_SELECTED_LIST_ID_KEY
     );
   }
+
   // Instance Methods
   addNewList(e) {
     e.preventDefault();
@@ -41,17 +42,20 @@ class TodoList {
     newListInput.value = null;
     this.saveAndRender();
   }
+
   selectList(e) {
     if (e.target.tagName.toLowerCase() === "li") {
       this._selectedListId = e.target.dataset.listId;
     }
     this.saveAndRender();
   }
+
   deleteList() {
     this._lists = this._lists.filter((l) => l.id !== this._selectedListId);
     this._selectedListId = null;
     this.saveAndRender();
   }
+
   saveToLocalStorage() {
     localStorage.setItem(LOCAL_STORAGE_LIST_KEY, JSON.stringify(this._lists));
     localStorage.setItem(
@@ -59,10 +63,24 @@ class TodoList {
       this._selectedListId
     );
   }
+
   saveAndRender() {
     this.saveToLocalStorage();
     render();
   }
+
+  renderLists() {
+    this._lists.forEach((li) => {
+      const newListItem = document.createElement("li");
+      newListItem.dataset.listId = li.id;
+      newListItem.textContent = li.name;
+      newListItem.classList.add("list-name");
+      if (todoList._selectedListId === li.id)
+        newListItem.classList.add("active-list");
+      listsContainer.appendChild(newListItem);
+    });
+  }
+
   // Static Methods
   static createList(name) {
     return {
@@ -79,17 +97,96 @@ class TodoList {
   }
 }
 
+class Task {
+  constructor(id, name, complete) {
+    (this.id = id), (this.name = name), (this.complete = complete);
+  }
+
+  static markTaskAsDone(e) {
+    const input = e.currentTarget.children[0];
+    if (input.tagName.toLowerCase() === "input") {
+      input.checked = !input.checked;
+      const selectedList = todoList._lists.find(
+        (list) => list.id === todoList._selectedListId
+      );
+      const selectedTask = selectedList.tasks.find(
+        (task) => task.id === input.dataset.taskId
+      );
+      selectedTask.complete = input.checked;
+      todoList.saveToLocalStorage();
+      Task.renderTaskCount(selectedList);
+    }
+  }
+
+  static renderTaskCount(list) {
+    const incompleteTasksCount = list.tasks.filter((task) => !task.complete)
+      .length;
+    listCount.textContent = !incompleteTasksCount
+      ? "No ongoing tasks!"
+      : `${incompleteTasksCount} task${
+          incompleteTasksCount > 1 ? "s" : ""
+        } remaining`;
+  }
+
+  static clearFinishedTasks() {
+    const selectedList = todoList._lists.find(
+      (list) => list.id === todoList._selectedListId
+    );
+    selectedList.tasks = selectedList.tasks.filter((t) => !t.complete);
+    todoList.saveAndRender();
+  }
+
+  static addNewTask(e) {
+    e.preventDefault();
+    const taskName = newTaskInput.value;
+    if (!taskName) return alert("Please enter a new task");
+    if (taskName.length > 14)
+      return alert("The task should be less than 14 characters");
+    const newTask = Task.createTask(taskName);
+
+    newTaskInput.value = null;
+    const selectedList = todoList._lists.find(
+      (list) => list.id === todoList._selectedListId
+    );
+    selectedList.tasks.push(newTask);
+    todoList.saveAndRender();
+  }
+
+  static createTask(name) {
+    return new Task(Date.now().toString(), name, false);
+  }
+
+  static renderTasks(selectedList) {
+    selectedList.tasks.forEach((t) => {
+      const newTask = document.createElement("div");
+      newTask.classList.add("task");
+      newTask.innerHTML = `
+             <input 
+                type="checkbox"
+                data-task-id=${t.id}
+                ${t.complete ? "checked" : ""}
+              />
+              <label for=${t.id}>
+                <span class="custom-checkbox"></span>
+                ${t.name}
+              </label>`;
+      tasksContainer.appendChild(newTask);
+      newTask.addEventListener("click", Task.markTaskAsDone);
+    });
+  }
+}
+
 const todoList = new TodoList();
 
 listsContainer.addEventListener("click", todoList.selectList.bind(todoList));
 deleteListBtn.addEventListener("click", todoList.deleteList.bind(todoList));
 newListForm.addEventListener("submit", todoList.addNewList.bind(todoList));
-newTaskForm.addEventListener('submit', addNewTask)
-clearTasksBtn.addEventListener('click', clearFinishedTasks)
+newTaskForm.addEventListener("submit", Task.addNewTask);
+clearTasksBtn.addEventListener("click", Task.clearFinishedTasks);
 
 function render() {
   TodoList.clearElement(listsContainer);
-  renderLists();
+  todoList.renderLists();
   const selectedList = todoList._lists.find(
     (list) => list.id === todoList._selectedListId
   );
@@ -98,97 +195,10 @@ function render() {
   } else {
     listDisplayContainer.style.display = "";
     listTitle.textContent = selectedList.name;
-    renderTaskCount(selectedList);
+    Task.renderTaskCount(selectedList);
     TodoList.clearElement(tasksContainer);
-    renderTasks(selectedList);
+    Task.renderTasks(selectedList);
   }
-}
-
-function renderTaskCount(list) {
-  const incompleteTasksCount = list.tasks.filter((task) => !task.complete)
-    .length;
-  listCount.textContent = !incompleteTasksCount
-    ? "No ongoing tasks!"
-    : `${incompleteTasksCount} task${
-        incompleteTasksCount > 1 ? "s" : ""
-      } remaining`;
-}
-
-function markTaskAsDone(e) {
-    const input = e.currentTarget.children[0]
-    if (input.tagName.toLowerCase() === 'input') {
-        input.checked = !input.checked
-        const selectedList = todoList._lists.find(
-            (list) => list.id === todoList._selectedListId
-          );
-        const selectedTask = selectedList.tasks.find(task => task.id === input.dataset.taskId)
-        selectedTask.complete = input.checked
-        todoList.saveToLocalStorage()
-        renderTaskCount(selectedList)
-    }
-}
-
-function clearFinishedTasks() {
-    const selectedList = todoList._lists.find(
-        (list) => list.id === todoList._selectedListId
-      );
-      selectedList.tasks = selectedList.tasks.filter(t => !t.complete)
-     todoList.saveAndRender()
-}
-
-function renderTasks(selectedList) {
-  selectedList.tasks.forEach((t) => {
-    const newTask = document.createElement("div");
-    newTask.classList.add("task");
-    newTask.innerHTML = `
-     <input 
-        type="checkbox"
-        data-task-id=${t.id}
-        ${t.complete ? "checked" : ""}
-      />
-      <label for=${t.id}>
-        <span class="custom-checkbox"></span>
-        ${t.name}
-      </label>`;
-    tasksContainer.appendChild(newTask);
-    newTask.addEventListener('click', markTaskAsDone)
-  });
-}
-
-function addNewTask(e) {
-    e.preventDefault();
-    const taskName = newTaskInput.value;
-    if (!taskName) return alert("Please enter a new task");
-    if (taskName.length > 14)
-      return alert("The task should be less than 14 characters");
-    const newTask = createTask(taskName);
-    
-    newTaskInput.value = null;
-    const selectedList = todoList._lists.find(
-        (list) => list.id === todoList._selectedListId
-      );
-    selectedList.tasks.push(newTask);
-    todoList.saveAndRender();
-}
-
-function createTask(name) {
-    return {
-        id: Date.now().toString(),
-        name,
-        complete: false,
-      };
-}
-
-function renderLists() {
-  todoList._lists.forEach((li) => {
-    const newListItem = document.createElement("li");
-    newListItem.dataset.listId = li.id;
-    newListItem.textContent = li.name;
-    newListItem.classList.add("list-name");
-    if (todoList._selectedListId === li.id)
-      newListItem.classList.add("active-list");
-    listsContainer.appendChild(newListItem);
-  });
 }
 
 render();
